@@ -11,7 +11,7 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<scala.version>2.12</scala.version>
-		<akka.version>2.5.22</akka.version>
+		<akka.version>2.6.0</akka.version>
 		<chill-akka.version>0.9.3</chill-akka.version>
 		<logback.version>1.2.3</logback.version>
 		<jcommander.version>1.72</jcommander.version>
@@ -78,6 +78,8 @@
 			<artifactId>chill-akka_${scala.version}</artifactId>
 			<version>${chill-akka.version}</version>
 		</dependency>
+
+
 
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
