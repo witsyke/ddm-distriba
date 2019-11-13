@@ -50,7 +50,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     /////////////////
     // Actor State //
     /////////////////
-    private Materializer materializer = Materializer.createMaterializer(this.context());
+    private Materializer materializer = Materializer.createMaterializer(this.context()); // test matFromSystem performance
     private StreamRefResolver streamRefResolver = new StreamRefResolverImpl((ExtendedActorSystem) this.context().system());
 
     /////////////////////
@@ -73,7 +73,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
         ActorSelection receiverProxy = this.context().actorSelection(receiver.path().child(DEFAULT_NAME));
 
         SourceRef<ByteString> sourceRef = StreamConverters.fromInputStream(() ->
-                new ByteArrayInputStream(KryoPoolSingleton.get().toBytesWithClass(message.getMessage())), 512 ^ 2)
+                new ByteArrayInputStream(KryoPoolSingleton.get().toBytesWithClass(message.getMessage())), 65536) // chunkSize is 2^16 -> found to be good chunk size by trail
                 .runWith(StreamRefs.sourceRef(), materializer);
 
         receiverProxy.tell(new SourceMessage(streamRefResolver.toSerializationFormat(sourceRef), this.sender(), message.getReceiver()), this.self());
