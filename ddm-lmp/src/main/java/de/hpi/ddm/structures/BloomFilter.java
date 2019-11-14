@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.List;
 
 import de.hpi.ddm.configuration.ConfigurationSingleton;
-
+// also works if BloomFilter is not Serializable TODO check if we should leave this here or not
 public class BloomFilter implements Serializable {
 
 	private static final long serialVersionUID = 9059987260931800144L;

@@ -40,8 +40,8 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class SourceMessage implements Serializable {
-        private static final long serialVersionUID = 3647485967346346574L;
+    public static class SourceRefMessage implements Serializable {
+        private static final long serialVersionUID = -5370521216104792175L;
         private String sourceRef;
         private ActorRef sender;
         private ActorRef receiver;
@@ -63,7 +63,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     public Receive createReceive() {
         return receiveBuilder()
                 .match(LargeMessage.class, this::handle)
-                .match(SourceMessage.class, this::handle)
+                .match(SourceRefMessage.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
     }
@@ -72,14 +72,16 @@ public class LargeMessageProxy extends AbstractLoggingActor {
         ActorRef receiver = message.getReceiver();
         ActorSelection receiverProxy = this.context().actorSelection(receiver.path().child(DEFAULT_NAME));
 
-        SourceRef<ByteString> sourceRef = StreamConverters.fromInputStream(() ->
-                new ByteArrayInputStream(KryoPoolSingleton.get().toBytesWithClass(message.getMessage())), 65536) // chunkSize is 2^16 -> found to be good chunk size by trail
-                .runWith(StreamRefs.sourceRef(), materializer);
+        ByteArrayInputStream byteStream = new ByteArrayInputStream(KryoPoolSingleton.get().toBytesWithClass(message.getMessage()));
 
-        receiverProxy.tell(new SourceMessage(streamRefResolver.toSerializationFormat(sourceRef), this.sender(), message.getReceiver()), this.self());
+        SourceRef<ByteString> sourceRef = StreamConverters.fromInputStream(() ->
+                byteStream, 65536) // chunkSize is 2^16 -> found to be good chunk size by trail
+                .runWith(StreamRefs.sourceRef(), materializer);
+        receiverProxy.tell(new SourceRefMessage(streamRefResolver.toSerializationFormat(sourceRef), this.sender(), message.getReceiver()), this.self());
+        byteStream.reset();
     }
 
-    private void handle(SourceMessage message) {
+    private void handle(SourceRefMessage message) {
         SourceRef<ByteString> objectSourceRef = streamRefResolver.resolveSourceRef(message.sourceRef);
 
         ByteStringBuilder builder = ByteString.createBuilder();
@@ -87,5 +89,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
                 .forEach(builder::append);
 
         message.getReceiver().tell(KryoPoolSingleton.get().fromBytes(builder.result().toArray()), message.getSender());
+
+        builder.clear();
     }
 }
