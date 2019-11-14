@@ -72,13 +72,13 @@ public class LargeMessageProxy extends AbstractLoggingActor {
         ActorRef receiver = message.getReceiver();
         ActorSelection receiverProxy = this.context().actorSelection(receiver.path().child(DEFAULT_NAME));
 
-        ByteArrayInputStream test = new ByteArrayInputStream(KryoPoolSingleton.get().toBytesWithClass(message.getMessage()));
+        ByteArrayInputStream byteStream = new ByteArrayInputStream(KryoPoolSingleton.get().toBytesWithClass(message.getMessage()));
 
         SourceRef<ByteString> sourceRef = StreamConverters.fromInputStream(() ->
-                test, 65536) // chunkSize is 2^16 -> found to be good chunk size by trail
+                byteStream, 65536) // chunkSize is 2^16 -> found to be good chunk size by trail
                 .runWith(StreamRefs.sourceRef(), materializer);
         receiverProxy.tell(new SourceRefMessage(streamRefResolver.toSerializationFormat(sourceRef), this.sender(), message.getReceiver()), this.self());
-        test.reset();
+        byteStream.reset();
     }
 
     private void handle(SourceRefMessage message) {
