@@ -56,6 +56,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     /////////////////////
     // Actor Lifecycle //
     /////////////////////
+
     ////////////////////
     // Actor Behavior //
     ////////////////////
@@ -75,10 +76,10 @@ public class LargeMessageProxy extends AbstractLoggingActor {
         ByteArrayInputStream byteStream = new ByteArrayInputStream(KryoPoolSingleton.get().toBytesWithClass(message.getMessage()));
 
         SourceRef<ByteString> sourceRef = StreamConverters.fromInputStream(() ->
-                byteStream, 65536) // chunkSize is 2^16 -> found to be good chunk size by trail
+                byteStream, 65536) // chunkSize is 2^16 -> found to be good chunk size by trial
                 .runWith(StreamRefs.sourceRef(), materializer);
         receiverProxy.tell(new SourceRefMessage(streamRefResolver.toSerializationFormat(sourceRef), this.sender(), message.getReceiver()), this.self());
-        byteStream.reset();
+        byteStream.reset(); 
     }
 
     private void handle(SourceRefMessage message) {
@@ -89,7 +90,6 @@ public class LargeMessageProxy extends AbstractLoggingActor {
                 .forEach(builder::append);
 
         message.getReceiver().tell(KryoPoolSingleton.get().fromBytes(builder.result().toArray()), message.getSender());
-
-        builder.clear();
+        builder.clear(); //Test if this will relieve slave
     }
 }
