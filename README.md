@@ -22,5 +22,10 @@ The implementation was tested on serveral machines:
 
  2. Raspberry Pi:
 __2 Raspberry Pi 3B+ (1GB Ram, Cortex-A53)__
- -> remote execution works with up to 10 workers (9 each, with both machines as slaves) when JVM memory is extended with "-Xmx1800m" (Swap is configured to 2048 on both machines)
-*This is only the tested maximum after which we stopped. Potentially more workes possible!*
+    * Remote execution works with up to 10 workers (when using one Raspberry Pi as slave)
+    * Remote execution works with up to 18 workers (when using two Raspberry Pis, with 9 workers each)
+    
+
+    *JVM memory is extended with "-Xmx1800m" (Swap is configured to 2048 on both machines)*
+    
+    *This is only the tested maximum after which we stopped. Potentially more workes possible!*
