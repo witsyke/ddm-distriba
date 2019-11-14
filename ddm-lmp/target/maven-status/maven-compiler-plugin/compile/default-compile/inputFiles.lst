@@ -1,0 +1,15 @@
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/configuration/CommandSlave.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/structures/BloomFilter.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/configuration/Configuration.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/actors/Worker.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/configuration/Command.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/structures/KryoPoolSingleton.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/actors/Master.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/configuration/CommandMaster.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/SlaveSystem.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/configuration/ConfigurationSingleton.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/actors/LargeMessageProxy.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/actors/Reaper.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/structures/BitSet.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/MasterSystem.java
+/mnt/d/Users/witzk/HPI/Distributed Data Mangement/Assignments/distriba/ddm-lmp/src/main/java/de/hpi/ddm/Main.java
