@@ -1,9 +1,12 @@
 package de.hpi.ddm.actors;
 
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import java.util.HashMap;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
@@ -22,6 +25,10 @@ public class Master extends AbstractLoggingActor {
 
 	public static final String DEFAULT_NAME = "master";
 
+	private HashMap<String, String> hintValueStore = new HashMap<>();
+	private HashMap<String, String> pwValueStore = new HashMap<>();
+	private ArrayList<String []> pwHashMapping = new ArrayList<>();
+
 	public static Props props(final ActorRef reader, final ActorRef collector) {
 		return Props.create(Master.class, () -> new Master(reader, collector));
 	}
@@ -38,7 +45,7 @@ public class Master extends AbstractLoggingActor {
 
 	@Data
 	public static class StartMessage implements Serializable {
-		private static final long serialVersionUID = -50374816448627600L;
+		private static final long serialVersionUID = 388281792843702459L;
 	}
 
 	@Data
@@ -125,29 +132,28 @@ public class Master extends AbstractLoggingActor {
 
 	protected void handle(BatchMessage message) {
 
-		///////////////////////////////////////////////////////////////////////////////////////////////////////
-		// The input file is read in batches for two reasons:
-		/////////////////////////////////////////////////////////////////////////////////////////////////////// /////////////////////////////////////////////////
-		// 1. If we distribute the batches early, we might not need to hold the entire
-		/////////////////////////////////////////////////////////////////////////////////////////////////////// input
-		/////////////////////////////////////////////////////////////////////////////////////////////////////// data
-		/////////////////////////////////////////////////////////////////////////////////////////////////////// in
-		/////////////////////////////////////////////////////////////////////////////////////////////////////// memory.
-		/////////////////////////////////////////////////////////////////////////////////////////////////////// //
-		// 2. If we process the batches early, we can achieve latency hiding.
-		/////////////////////////////////////////////////////////////////////////////////////////////////////// /////////////////////////////////
-		// TODO: Implement the processing of the data for the concrete assignment.
-		/////////////////////////////////////////////////////////////////////////////////////////////////////// ////////////////////////////
-		///////////////////////////////////////////////////////////////////////////////////////////////////////
+		//TODO: For each PW we need -> ID, PasswordHash, Hints
+
+
+		//TODO: create key value store of the password-hashes and the values & a respecitve key-value store for the hints
+
 
 		if (message.getLines().isEmpty()) {
 			this.collector.tell(new Collector.PrintMessage(), this.self());
-			this.terminate();
+			//this.terminate(); //TODO: here this.reader.terminate()?
 			return;
 		}
 
-		for (String[] line : message.getLines())
+		for (String[] line : message.getLines()){
 			System.out.println(Arrays.toString(line));
+
+
+			pwHashMapping.add((String[])Arrays.copyOfRange(line, 5, line.length)); //Add all hints for a password in ArrayList
+			pwValueStore.put(line[3], "");
+			for(int i = 5; i < line.length; i++){ //The hints start at position 5
+				hintValueStore.put(line[i], "");
+			}
+		}
 
 		this.collector.tell(new Collector.CollectMessage("Processed batch of size " + message.getLines().size()),
 				this.self());
@@ -172,12 +178,12 @@ public class Master extends AbstractLoggingActor {
 	protected void handle(RegistrationMessage message) {
 		this.context().watch(this.sender());
 		this.workers.add(this.sender());
-		// this.log().info("Registered {}", this.sender());
+		this.log().info("Registered {}", this.sender());
 	}
 
 	protected void handle(Terminated message) {
 		this.context().unwatch(message.getActor());
 		this.workers.remove(message.getActor());
-		// this.log().info("Unregistered {}", message.getActor());
+		this.log().info("Unregistered {}", message.getActor());
 	}
 }
