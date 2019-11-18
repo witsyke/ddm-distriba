@@ -19,7 +19,7 @@ public class Master extends AbstractLoggingActor {
 	////////////////////////
 	// Actor Construction //
 	////////////////////////
-	
+
 	public static final String DEFAULT_NAME = "master";
 
 	public static Props props(final ActorRef reader, final ActorRef collector) {
@@ -40,8 +40,10 @@ public class Master extends AbstractLoggingActor {
 	public static class StartMessage implements Serializable {
 		private static final long serialVersionUID = -50374816448627600L;
 	}
-	
-	@Data @NoArgsConstructor @AllArgsConstructor
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
 	public static class BatchMessage implements Serializable {
 		private static final long serialVersionUID = 8343040942748609598L;
 		private List<String[]> lines;
@@ -51,7 +53,40 @@ public class Master extends AbstractLoggingActor {
 	public static class RegistrationMessage implements Serializable {
 		private static final long serialVersionUID = 3303081601659723997L;
 	}
-	
+
+	// New actor messages
+
+	@Data
+	public static class PasswordCrackRequest implements Serializable {
+		private static final long serialVersionUID = 3269154332017915190L;
+	}
+
+	@Data
+	public static class PasswordCrackAbort implements Serializable {
+		private static final long serialVersionUID = 8134160671290471710L;
+	}
+
+	@Data
+	public static class HintCrackAbort implements Serializable{
+		private static final long serialVersionUID = 8428904686127096286L;
+	}
+
+	@Data
+	public static class HintCrackRequest implements Serializable{
+		private static final long serialVersionUID = 2359255535989681327L;
+	}
+
+	@Data
+	public static class HintCrackedAccResult implements  Serializable{
+		private static final long serialVersionUID = 4014203645870074601L;
+	}
+
+	@Data
+	public static class PasswordCrackedResult implements  Serializable{
+		private static final long serialVersionUID  = 1490049316217557786L;
+	}
+
+
 	/////////////////
 	// Actor State //
 	/////////////////
@@ -61,7 +96,7 @@ public class Master extends AbstractLoggingActor {
 	private final List<ActorRef> workers;
 
 	private long startTime;
-	
+
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
@@ -77,54 +112,59 @@ public class Master extends AbstractLoggingActor {
 
 	@Override
 	public Receive createReceive() {
-		return receiveBuilder()
-				.match(StartMessage.class, this::handle)
-				.match(BatchMessage.class, this::handle)
-				.match(Terminated.class, this::handle)
-				.match(RegistrationMessage.class, this::handle)
-				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
-				.build();
+		return receiveBuilder().match(StartMessage.class, this::handle).match(BatchMessage.class, this::handle)
+				.match(Terminated.class, this::handle).match(RegistrationMessage.class, this::handle)
+				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString())).build();
 	}
 
 	protected void handle(StartMessage message) {
 		this.startTime = System.currentTimeMillis();
-		
+
 		this.reader.tell(new Reader.ReadMessage(), this.self());
 	}
-	
+
 	protected void handle(BatchMessage message) {
-		
+
 		///////////////////////////////////////////////////////////////////////////////////////////////////////
-		// The input file is read in batches for two reasons: /////////////////////////////////////////////////
-		// 1. If we distribute the batches early, we might not need to hold the entire input data in memory. //
-		// 2. If we process the batches early, we can achieve latency hiding. /////////////////////////////////
-		// TODO: Implement the processing of the data for the concrete assignment. ////////////////////////////
+		// The input file is read in batches for two reasons:
+		/////////////////////////////////////////////////////////////////////////////////////////////////////// /////////////////////////////////////////////////
+		// 1. If we distribute the batches early, we might not need to hold the entire
+		/////////////////////////////////////////////////////////////////////////////////////////////////////// input
+		/////////////////////////////////////////////////////////////////////////////////////////////////////// data
+		/////////////////////////////////////////////////////////////////////////////////////////////////////// in
+		/////////////////////////////////////////////////////////////////////////////////////////////////////// memory.
+		/////////////////////////////////////////////////////////////////////////////////////////////////////// //
+		// 2. If we process the batches early, we can achieve latency hiding.
+		/////////////////////////////////////////////////////////////////////////////////////////////////////// /////////////////////////////////
+		// TODO: Implement the processing of the data for the concrete assignment.
+		/////////////////////////////////////////////////////////////////////////////////////////////////////// ////////////////////////////
 		///////////////////////////////////////////////////////////////////////////////////////////////////////
-		
+
 		if (message.getLines().isEmpty()) {
 			this.collector.tell(new Collector.PrintMessage(), this.self());
 			this.terminate();
 			return;
 		}
-		
+
 		for (String[] line : message.getLines())
 			System.out.println(Arrays.toString(line));
-		
-		this.collector.tell(new Collector.CollectMessage("Processed batch of size " + message.getLines().size()), this.self());
+
+		this.collector.tell(new Collector.CollectMessage("Processed batch of size " + message.getLines().size()),
+				this.self());
 		this.reader.tell(new Reader.ReadMessage(), this.self());
 	}
-	
+
 	protected void terminate() {
 		this.reader.tell(PoisonPill.getInstance(), ActorRef.noSender());
 		this.collector.tell(PoisonPill.getInstance(), ActorRef.noSender());
-		
+
 		for (ActorRef worker : this.workers) {
 			this.context().unwatch(worker);
 			worker.tell(PoisonPill.getInstance(), ActorRef.noSender());
 		}
-		
+
 		this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
-		
+
 		long executionTime = System.currentTimeMillis() - this.startTime;
 		this.log().info("Algorithm finished in {} ms", executionTime);
 	}
@@ -132,12 +172,12 @@ public class Master extends AbstractLoggingActor {
 	protected void handle(RegistrationMessage message) {
 		this.context().watch(this.sender());
 		this.workers.add(this.sender());
-//		this.log().info("Registered {}", this.sender());
+		// this.log().info("Registered {}", this.sender());
 	}
-	
+
 	protected void handle(Terminated message) {
 		this.context().unwatch(message.getActor());
 		this.workers.remove(message.getActor());
-//		this.log().info("Unregistered {}", message.getActor());
+		// this.log().info("Unregistered {}", message.getActor());
 	}
 }
