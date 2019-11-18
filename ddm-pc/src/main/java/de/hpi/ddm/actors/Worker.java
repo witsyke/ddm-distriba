@@ -37,6 +37,8 @@ public class Worker extends AbstractLoggingActor {
 	// Actor Messages //
 	////////////////////
 
+	
+
 	/////////////////
 	// Actor State //
 	/////////////////
@@ -83,6 +85,7 @@ public class Worker extends AbstractLoggingActor {
 
 	private void handle(MemberUp message) {
 		this.register(message.member());
+
 	}
 
 	private void register(Member member) {
@@ -91,7 +94,7 @@ public class Worker extends AbstractLoggingActor {
 			
 			this.getContext()
 				.actorSelection(member.address() + "/user/" + Master.DEFAULT_NAME)
-				.tell(new Master.RegistrationMessage(), this.self());
+				.tell(new Master.RegistrationMessage(), this.self());			
 		}
 	}
 	
@@ -99,6 +102,42 @@ public class Worker extends AbstractLoggingActor {
 		if (this.masterSystem.equals(message.member()))
 			this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
 	}
+
+	private void handle(Master.PasswordCrackRequest message){
+		//TODO
+		//Password hash (before all the hints were updated)
+		//
+	}
+
+	private void handle(Master.HintCrackRequest message){
+		//TODO
+		//Character sequence -1 character
+		//Current hint table
+		//
+	}
+
+	private void handle(Master.HintCrackAbort message){
+		//TODO
+		//Abort function
+	}
+
+	private void handle(Master.PasswordCrackAbort message){
+		//TODO: 
+		//Abort function
+	}
+
+
+	private String crack_password(String hash, String hints){
+		// Crack password
+		return null;
+	}
+
+	private String crack_hint(String hash, String hints){
+		//Crack hint
+		return null;
+	}
+
+
 	
 	private String hash(String line) {
 		try {
@@ -115,6 +154,7 @@ public class Worker extends AbstractLoggingActor {
 			throw new RuntimeException(e.getMessage());
 		}
 	}
+
 	
 	// Generating all permutations of an array using Heap's Algorithm
 	// https://en.wikipedia.org/wiki/Heap's_algorithm
@@ -142,4 +182,33 @@ public class Worker extends AbstractLoggingActor {
 			}
 		}
 	}
+
+	/* Hints:
+	 * Both Passwords & hints are SHA-256 encrypted
+	 * Encryption cracking via burte force approach
+	 * generate sequences
+	 * compare current SHA-256 with exising one -> if the same -> encryption is broken
+	 */
+
+	/* Rules:
+	 * New shutdown protocol
+	 * propper communication protocol for workers/masters
+	 * additional actors
+	 */
+
+	// Password Cracking:
+		/*
+			Parameters that changes:
+				* password length
+				* password chars
+				* number of hints ("width of file")
+				* number of passwords (lenth of the file)
+				* number of cluster nodes (do not wait for x nodes to join the cluster; you do not know their number, Implement elasticity, i.e. allow joining nodes at runtime)
+
+			Parameters that do not change
+				* encryption function SHA256
+				* all passwords are of the same length and have the same character universe
+		*/
+
+	
 }
