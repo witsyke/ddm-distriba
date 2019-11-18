@@ -59,7 +59,7 @@ public class BloomFilter {
 	
 	/**
 	 * Adds all the elements to the BloomFilter.
-	 * @param element the element to be added
+	 * @param //element the element to be added
 	 * @return true if the element was added; false if it existed already
 	 */
 	public void addAll(List<BitSet> elements) {
