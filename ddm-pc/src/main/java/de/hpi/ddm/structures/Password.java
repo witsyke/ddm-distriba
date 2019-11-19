@@ -10,7 +10,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Password implements Serializable {
+public class Password implements Serializable, Work {
     public String password;
     public List<String> hints;
 }
