@@ -196,7 +196,7 @@ public class Master extends AbstractLoggingActor {
                 this.tasksCreationStarted = true;
                 generateTasks(); //TODO: has to be parallelized
 
-                long permutationsPerHint = factorial(charSet.length() - 1);
+                int permutationsPerHint = factorial(charSet.length() - 1);
 
                 for (char c : this.charSet.toCharArray()) {
                     String missingChar = String.valueOf(c);
@@ -276,7 +276,12 @@ public class Master extends AbstractLoggingActor {
             this.work.put(this.sender(), tempPw);
             this.sender().tell(new PasswordInitCrackRequest(this.hintValueStore, this.charSet, tempPw, this.pwLength), this.self());
             //TODO: Worker still working when all hints were recieved
+        } else{
+            Task tempTask = tasks.pop();
+            this.work.put(this.sender(), tempTask);
+            this.sender().tell(new HintCrackRequest(this.hintValueStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.sender());
         }
+
 
     }
 
@@ -287,10 +292,12 @@ public class Master extends AbstractLoggingActor {
             this.log().info("All passwords cracked!");
             this.collector.tell(new Collector.PrintMessage(), this.self());
             this.terminate();
+        } else{
+            Password tempPw = passwords.pop();
+            this.work.put(this.sender(), tempPw);
+            this.sender().tell(new PasswordCrackRequest(this.charSet, tempPw, this.pwLength), this.self());
         }
-        Password tempPw = passwords.pop();
-        this.work.put(this.sender(), tempPw);
-        this.sender().tell(new PasswordInitCrackRequest(this.hintValueStore, this.charSet, tempPw, this.pwLength), this.self());
+
 
     }
 
@@ -298,7 +305,7 @@ public class Master extends AbstractLoggingActor {
         //TODO
     }
 
-    private long factorial(int n) {
+    private int factorial(int n) {
         if (n <= 2) {
             return n;
         }
