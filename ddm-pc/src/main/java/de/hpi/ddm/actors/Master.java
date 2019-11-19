@@ -30,6 +30,8 @@ public class Master extends AbstractLoggingActor {
 	private HashMap<String, String> pwValueStore = new HashMap<>();
 	private ArrayList<String []> pwHashMapping = new ArrayList<>();
 	private Boolean inputReadingComplete;
+	private Boolean passwordsAllCracked;
+	private Boolean hintsAllCracked;
 
 	public static Props props(final ActorRef reader, final ActorRef collector) {
 		return Props.create(Master.class, () -> new Master(reader, collector));
@@ -40,6 +42,7 @@ public class Master extends AbstractLoggingActor {
 		this.collector = collector;
 		this.workers = new ArrayList<>();
 		this.inputReadingComplete = false;
+		this.passwordsAllCracked = false;
 	}
 
 	////////////////////
@@ -74,12 +77,19 @@ public class Master extends AbstractLoggingActor {
 	@Data
 	public static class PasswordCrackAbort implements Serializable {
 		private static final long serialVersionUID = 8134160671290471710L;
+
 	}
 
 	@Data
 	public static class HintCrackAbort implements Serializable{
 		private static final long serialVersionUID = 8428904686127096286L;
 	}
+
+	@Data
+	public static class HintResultBroadcast implements Serializable{            //TODO: every now and then publish all results
+        private static final long serialVersionUID = 826765939626353866L;
+
+    }
 
 	@Data
     @NoArgsConstructor
@@ -93,11 +103,13 @@ public class Master extends AbstractLoggingActor {
 	@Data
 	public static class HintCrackedAccResult implements  Serializable{
 		private static final long serialVersionUID = 4014203645870074601L;
+        private HashMap<String, String> hintResultMap;
 	}
 
 	@Data
 	public static class PasswordCrackedResult implements  Serializable{
 		private static final long serialVersionUID  = 1490049316217557786L;
+        private String[] pwResult;
 	}
 
 
@@ -126,7 +138,10 @@ public class Master extends AbstractLoggingActor {
 
 	@Override
 	public Receive createReceive() {
-		return receiveBuilder().match(StartMessage.class, this::handle).match(BatchMessage.class, this::handle)
+		return receiveBuilder().match(StartMessage.class, this::handle)
+                .match(BatchMessage.class, this::handle)
+                .match(PasswordCrackedResult.class, this::handle)
+                .match(HintCrackedAccResult.class, this::handle)
 				.match(Terminated.class, this::handle).match(RegistrationMessage.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString())).build();
 	}
@@ -142,8 +157,9 @@ public class Master extends AbstractLoggingActor {
 		if (message.getLines().isEmpty()) {
 			this.collector.tell(new Collector.PrintMessage(), this.self());
 			this.inputReadingComplete = true;
-			//Tell all the workers the state of the
+			//Tell all the workers the state of the art //TODO:
 			//this.terminate(); //TODO: here this.reader.terminate()?
+
 			return;
 		}
 
@@ -196,4 +212,22 @@ public class Master extends AbstractLoggingActor {
 		this.workers.remove(message.getActor());
 		this.log().info("Unregistered {}", message.getActor());
 	}
+
+	protected void handle(HintCrackedAccResult message){
+        hintValueStore.putAll(message.hintResultMap);
+		if(hintValueStore.containsValue(null)){
+			this.log().info("All hints cracked");
+		}
+		hintsAllCracked = true;
+		//TODO: send all hint abort messages to the workers & start spreading the PWS
+		//TODO: map all hints to the PWs and send them around
+
+
+
+    }
+    protected void handle(PasswordCrackedResult message){
+	    pwValueStore.put(message.pwResult[0], message.pwResult[1]);
+	    this.collector.tell(new String(message.pwResult[0]), this.self());
+
+    }
 }

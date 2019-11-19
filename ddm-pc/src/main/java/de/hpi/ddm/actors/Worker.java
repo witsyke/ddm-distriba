@@ -75,6 +75,7 @@ public class Worker extends AbstractLoggingActor {
 				.match(Master.HintCrackRequest.class, this::handle)
 				.match(Master.HintCrackAbort.class, this::handle)
 				.match(Master.PasswordCrackRequest.class, this::handle)
+				.match(Master.HintResultBroadcast.class, this::handle)
 				.match(Master.PasswordCrackAbort.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
@@ -111,13 +112,16 @@ public class Worker extends AbstractLoggingActor {
 		//TODO
 		//Password hash (before all the hints were updated)
 		//
+
 	}
 
 	private void handle(Master.HintCrackRequest message){
-		//TODO
+		
+	    //TODO
 		//Character sequence -1 character
 		//Current hint table
 		//
+
 	}
 
 	private void handle(Master.HintCrackAbort message){
@@ -128,6 +132,10 @@ public class Worker extends AbstractLoggingActor {
 	private void handle(Master.PasswordCrackAbort message){
 		//TODO: 
 		//Abort function
+	}
+
+	private void handle(Master.HintResultBroadcast message){
+		//TODO:
 	}
 
 
