@@ -12,65 +12,67 @@ import lombok.NoArgsConstructor;
 
 public class Collector extends AbstractLoggingActor {
 
-	////////////////////////
-	// Actor Construction //
-	////////////////////////
-	
-	public static final String DEFAULT_NAME = "collector";
+    ////////////////////////
+    // Actor Construction //
+    ////////////////////////
 
-	public static Props props() {
-		return Props.create(Collector.class);
-	}
+    public static final String DEFAULT_NAME = "collector";
 
-	////////////////////
-	// Actor Messages //
-	////////////////////
+    public static Props props() {
+        return Props.create(Collector.class);
+    }
 
-	@Data @NoArgsConstructor @AllArgsConstructor
-	public static class CollectMessage implements Serializable {
-		private static final long serialVersionUID = -102767440935270949L;
-		private String result;
-	}
+    ////////////////////
+    // Actor Messages //
+    ////////////////////
 
-	@Data
-	public static class PrintMessage implements Serializable {
-		private static final long serialVersionUID = -267778464637901383L;
-	}
-	
-	/////////////////
-	// Actor State //
-	/////////////////
-	
-	private List<String> results = new ArrayList<>();
-	
-	/////////////////////
-	// Actor Lifecycle //
-	/////////////////////
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CollectMessage implements Serializable {
+        private static final long serialVersionUID = -102767440935270949L;
+        private String result;
+    }
 
-	@Override
-	public void preStart() {
-		Reaper.watchWithDefaultReaper(this);
-	}
+    @Data
+    public static class PrintMessage implements Serializable {
+        private static final long serialVersionUID = -267778464637901383L;
+    }
 
-	////////////////////
-	// Actor Behavior //
-	////////////////////
+    /////////////////
+    // Actor State //
+    /////////////////
 
-	@Override
-	public Receive createReceive() {
-		return receiveBuilder()
-				.match(CollectMessage.class, this::handle)
-				.match(PrintMessage.class, this::handle)
-				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
-				.build();
-	}
+    private List<String> results = new ArrayList<>();
 
-	protected void handle(CollectMessage message) {
-		this.results.add(message.getResult());
-	}
-	
-	protected void handle(PrintMessage message) {
-		this.results.forEach(result -> this.log().info("{}", result));
-	}
+    /////////////////////
+    // Actor Lifecycle //
+    /////////////////////
+
+    @Override
+    public void preStart() {
+        Reaper.watchWithDefaultReaper(this);
+    }
+
+    ////////////////////
+    // Actor Behavior //
+    ////////////////////
+
+    @Override
+    public Receive createReceive() {
+        return receiveBuilder()
+                .match(CollectMessage.class, this::handle)
+                .match(PrintMessage.class, this::handle)
+                .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
+                .build();
+    }
+
+    protected void handle(CollectMessage message) {
+        this.results.add(message.getResult());
+    }
+
+    protected void handle(PrintMessage message) {
+        this.results.forEach(result -> this.log().info("{}", result));
+    }
 
 }
