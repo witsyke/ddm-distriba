@@ -25,6 +25,7 @@ public class Master extends AbstractLoggingActor {
     ////////////////////////
 
     public static final String DEFAULT_NAME = "master";
+    private static final int BASE_RANGE_SIZE = 500000;
 
     private HashMap<String, String> hintValueStore = new HashMap<>();
     private HashMap<String, String> pwValueStore = new HashMap<>();
@@ -194,6 +195,22 @@ public class Master extends AbstractLoggingActor {
                 this.pwLength = Integer.parseInt(line[3]);
                 this.tasksCreationStarted = true;
                 generateTasks(); //TODO: has to be parallelized
+
+                long permutationsPerHint = factorial(charSet.length() - 1);
+
+                for (char c : this.charSet.toCharArray()) {
+                    String missingChar = String.valueOf(c);
+                    String tempCharSet = this.charSet.replace(missingChar, "");
+                    for (int i = 0; i < permutationsPerHint; i += BASE_RANGE_SIZE) {
+                        if (i + BASE_RANGE_SIZE >= permutationsPerHint) {
+                            tasks.push(new Task(tempCharSet, i, permutationsPerHint, missingChar));
+                        } else {
+                            tasks.push(new Task(tempCharSet, i, i + BASE_RANGE_SIZE, missingChar));
+                        }
+                    }
+                }
+
+
             }
 
             System.out.println(Arrays.toString(line));
@@ -279,6 +296,13 @@ public class Master extends AbstractLoggingActor {
 
     protected void generateTasks() {
         //TODO
+    }
+
+    private long factorial(int n) {
+        if (n <= 2) {
+            return n;
+        }
+        return n * factorial(n - 1);
     }
 
 
