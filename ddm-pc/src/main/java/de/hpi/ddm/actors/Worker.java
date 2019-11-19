@@ -72,6 +72,10 @@ public class Worker extends AbstractLoggingActor {
 				.match(CurrentClusterState.class, this::handle)
 				.match(MemberUp.class, this::handle)
 				.match(MemberRemoved.class, this::handle)
+				.match(Master.HintCrackRequest.class, this::handle)
+				.match(Master.HintCrackAbort.class, this::handle)
+				.match(Master.PasswordCrackRequest.class, this::handle)
+				.match(Master.PasswordCrackAbort.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
