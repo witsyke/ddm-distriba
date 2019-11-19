@@ -80,7 +80,7 @@ public class Master extends AbstractLoggingActor {
     public static class PasswordCrackRequest implements Serializable {
         private static final long serialVersionUID = 3269154332017915190L;
         private String charSet;
-        private String password;
+        private Password password;
         private int passwordLength;
     }
 

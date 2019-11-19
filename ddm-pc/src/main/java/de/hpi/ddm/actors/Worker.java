@@ -1,8 +1,10 @@
 package de.hpi.ddm.actors;
 
+import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
 import java.util.List;
 
 import akka.actor.AbstractLoggingActor;
@@ -22,23 +24,23 @@ import lombok.NoArgsConstructor;
 
 public class Worker extends AbstractLoggingActor {
 
-	////////////////////////
-	// Actor Construction //
-	////////////////////////
-	
-	public static final String DEFAULT_NAME = "worker";
+    ////////////////////////
+    // Actor Construction //
+    ////////////////////////
 
-	public static Props props() {
-		return Props.create(Worker.class);
-	}
+    public static final String DEFAULT_NAME = "worker";
 
-	public Worker() {
-		this.cluster = Cluster.get(this.context().system());
-	}
-	
-	////////////////////
-	// Actor Messages //
-	////////////////////
+    public static Props props() {
+        return Props.create(Worker.class);
+    }
+
+    public Worker() {
+        this.cluster = Cluster.get(this.context().system());
+    }
+
+    ////////////////////
+    // Actor Messages //
+    ////////////////////
 
 
     @Data
@@ -75,70 +77,80 @@ public class Worker extends AbstractLoggingActor {
     // Actor Lifecycle //
     /////////////////////
 
-	@Override
-	public void preStart() {
-		Reaper.watchWithDefaultReaper(this);
-		
-		this.cluster.subscribe(this.self(), MemberUp.class, MemberRemoved.class);
-	}
+    @Override
+    public void preStart() {
+        Reaper.watchWithDefaultReaper(this);
 
-	@Override
-	public void postStop() {
-		this.cluster.unsubscribe(this.self());
-	}
+        this.cluster.subscribe(this.self(), MemberUp.class, MemberRemoved.class);
+    }
 
-	////////////////////
-	// Actor Behavior //
-	////////////////////
+    @Override
+    public void postStop() {
+        this.cluster.unsubscribe(this.self());
+    }
 
-	@Override
-	public Receive createReceive() {
-		return receiveBuilder()
-				.match(CurrentClusterState.class, this::handle)
-				.match(MemberUp.class, this::handle)
-				.match(MemberRemoved.class, this::handle)
-				.match(Master.HintCrackRequest.class, this::handle)
-				.match(Master.HintCrackAbort.class, this::handle)
-				.match(Master.PasswordCrackRequest.class, this::handle)
-				.match(Master.HintResultBroadcast.class, this::handle)
-				.match(Master.PasswordCrackAbort.class, this::handle)
-				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
-				.build();
-	}
+    ////////////////////
+    // Actor Behavior //
+    ////////////////////
 
-	private void handle(CurrentClusterState message) {
-		message.getMembers().forEach(member -> {
-			if (member.status().equals(MemberStatus.up()))
-				this.register(member);
-		});
-	}
+    @Override
+    public Receive createReceive() {
+        return receiveBuilder()
+                .match(CurrentClusterState.class, this::handle)
+                .match(MemberUp.class, this::handle)
+                .match(MemberRemoved.class, this::handle)
+                .match(Master.HintCrackRequest.class, this::handle)
+                .match(Master.HintCrackAbort.class, this::handle)
+                .match(Master.PasswordCrackRequest.class, this::handle)
+                .match(Master.HintResultBroadcast.class, this::handle)
+                .match(Master.PasswordCrackAbort.class, this::handle)
+                .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
+                .build();
+    }
 
-	private void handle(MemberUp message) {
-		this.register(message.member());
+    private void handle(CurrentClusterState message) {
+        message.getMembers().forEach(member -> {
+            if (member.status().equals(MemberStatus.up()))
+                this.register(member);
+        });
+    }
 
-	}
+    private void handle(MemberUp message) {
+        this.register(message.member());
 
-	private void register(Member member) {
-		if ((this.masterSystem == null) && member.hasRole(MasterSystem.MASTER_ROLE)) {
-			this.masterSystem = member;
-			
-			this.getContext()
-				.actorSelection(member.address() + "/user/" + Master.DEFAULT_NAME)
-				.tell(new Master.RegistrationMessage(), this.self());			
-		}
-	}
-	
-	private void handle(MemberRemoved message) {
-		if (this.masterSystem.equals(message.member()))
-			this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
-	}
+    }
 
-	private void handle(Master.PasswordCrackRequest message){
-		//TODO
-		//Password hash (before all the hints were updated)
-		//
+    private void register(Member member) {
+        if ((this.masterSystem == null) && member.hasRole(MasterSystem.MASTER_ROLE)) {
+            this.masterSystem = member;
 
-	}
+            this.getContext()
+                    .actorSelection(member.address() + "/user/" + Master.DEFAULT_NAME)
+                    .tell(new Master.RegistrationMessage(), this.self());
+        }
+    }
+
+    private void handle(MemberRemoved message) {
+        if (this.masterSystem.equals(message.member()))
+            this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
+    }
+
+    private void handle(Master.PasswordCrackRequest message) {
+        this.passwordFound = false; // have to reset this every time because i was too stupid to get the correction right
+        this.cleanPassword = "";
+        String charSet = message.getCharSet();
+
+        for (String hint : message.getPassword().getHints()) {
+            charSet = charSet.replace(this.hints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
+        }
+
+        char[] chars = charSet.toCharArray();
+
+
+        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, message.getPasswordLength(), message.getPassword().getPassword());
+
+        this.sender().tell(new FoundPasswordMessage(message.getPassword().getPassword(), this.cleanPassword), this.self()); // this can act as gimme work message at the same time
+    }
 
     private void handle(Master.HintCrackRequest message) {
 
@@ -155,10 +167,10 @@ public class Worker extends AbstractLoggingActor {
 
     }
 
-	private void handle(Master.HintCrackAbort message){
-		//TODO
-		//Abort function
-	}
+    private void handle(Master.HintCrackAbort message) {
+        //TODO
+        //Abort function
+    }
 
     private void handle(Master.PasswordCrackAbort message) {
         //TODO:
@@ -166,47 +178,33 @@ public class Worker extends AbstractLoggingActor {
         // SW: don't think we actually need this
     }
 
-	private void handle(Master.HintResultBroadcast message){
-		//TODO:
-	}
+    private void handle(Master.HintResultBroadcast message) {
+        //TODO:
+    }
+
+    private String hash(String line) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashedBytes = digest.digest(String.valueOf(line).getBytes("UTF-8"));
+
+            StringBuffer stringBuffer = new StringBuffer();
+            for (int i = 0; i < hashedBytes.length; i++) {
+                stringBuffer.append(Integer.toString((hashedBytes[i] & 0xff) + 0x100, 16).substring(1));
+            }
+            return stringBuffer.toString();
+        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+            throw new RuntimeException(e.getMessage());
+        }
+    }
 
 
-	private String crack_password(String hash, String hints){
-		// Crack password
-		return null;
-	}
-
-	private String crack_hint(String hash, String hints){
-		//Crack hint
-		return null;
-	}
-
-
-	
-	private String hash(String line) {
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			byte[] hashedBytes = digest.digest(String.valueOf(line).getBytes("UTF-8"));
-			
-			StringBuffer stringBuffer = new StringBuffer();
-			for (int i = 0; i < hashedBytes.length; i++) {
-				stringBuffer.append(Integer.toString((hashedBytes[i] & 0xff) + 0x100, 16).substring(1));
-			}
-			return stringBuffer.toString();
-		}
-		catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
-			throw new RuntimeException(e.getMessage());
-		}
-	}
-
-
-    private void calculatePermutationsAndCheckIfHint(String string, int start, int end, String character) {
+    private void calculatePermutationsAndCheckIfHint(String charSet, int start, int end, String character) {
         // final end = factorials[string.length()] = length!
         for (int i = start; i < end; i++) {
             StringBuilder onePermutation = new StringBuilder();
-            String temp = string;
+            String temp = charSet;
             int positionCode = i;
-            for (int position = string.length(); position > 0; position--) {
+            for (int position = charSet.length(); position > 0; position--) {
                 int selected = positionCode / this.factorials[position - 1];
                 onePermutation.append(temp.charAt(selected));
                 positionCode = positionCode % this.factorials[position - 1];
@@ -232,11 +230,10 @@ public class Worker extends AbstractLoggingActor {
         if (this.passwordFound) {
             return;
         }
-
         if (k == 0) {
             if (this.hash(prefix).equals(password)) {
-                this.passwordFound = true;
                 this.cleanPassword = this.hash(prefix);
+                this.passwordFound = true;
             }
             return;
         }
@@ -246,35 +243,4 @@ public class Worker extends AbstractLoggingActor {
             calculatePermutationsAndCheckIfPassword(set, newPrefix, n, k - 1, password);
         }
     }
-
-
-
-	/* Hints:
-	 * Both Passwords & hints are SHA-256 encrypted
-	 * Encryption cracking via burte force approach
-	 * generate sequences
-	 * compare current SHA-256 with exising one -> if the same -> encryption is broken
-	 */
-
-	/* Rules:
-	 * New shutdown protocol
-	 * propper communication protocol for workers/masters
-	 * additional actors
-	 */
-
-	// Password Cracking:
-		/*
-			Parameters that changes:
-				* password length
-				* password chars
-				* number of hints ("width of file")
-				* number of passwords (lenth of the file)
-				* number of cluster nodes (do not wait for x nodes to join the cluster; you do not know their number, Implement elasticity, i.e. allow joining nodes at runtime)
-
-			Parameters that do not change
-				* encryption function SHA256
-				* all passwords are of the same length and have the same character universe
-		*/
-
-	
 }
