@@ -13,6 +13,7 @@ import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.actor.Terminated;
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -28,6 +29,7 @@ public class Master extends AbstractLoggingActor {
 	private HashMap<String, String> hintValueStore = new HashMap<>();
 	private HashMap<String, String> pwValueStore = new HashMap<>();
 	private ArrayList<String []> pwHashMapping = new ArrayList<>();
+	private Boolean inputReadingComplete;
 
 	public static Props props(final ActorRef reader, final ActorRef collector) {
 		return Props.create(Master.class, () -> new Master(reader, collector));
@@ -37,6 +39,7 @@ public class Master extends AbstractLoggingActor {
 		this.reader = reader;
 		this.collector = collector;
 		this.workers = new ArrayList<>();
+		this.inputReadingComplete = false;
 	}
 
 	////////////////////
@@ -79,8 +82,12 @@ public class Master extends AbstractLoggingActor {
 	}
 
 	@Data
+    @NoArgsConstructor
+    @AllArgsConstructor
 	public static class HintCrackRequest implements Serializable{
 		private static final long serialVersionUID = 2359255535989681327L;
+		private ArrayList<String> hints; //First "Hint" is the chacter the permutation should leave out
+        private String charac;
 	}
 
 	@Data
@@ -132,14 +139,10 @@ public class Master extends AbstractLoggingActor {
 
 	protected void handle(BatchMessage message) {
 
-		//TODO: For each PW we need -> ID, PasswordHash, Hints
-
-
-		//TODO: create key value store of the password-hashes and the values & a respecitve key-value store for the hints
-
-
 		if (message.getLines().isEmpty()) {
 			this.collector.tell(new Collector.PrintMessage(), this.self());
+			this.inputReadingComplete = true;
+			//Tell all the workers the state of the
 			//this.terminate(); //TODO: here this.reader.terminate()?
 			return;
 		}
@@ -149,9 +152,9 @@ public class Master extends AbstractLoggingActor {
 
 
 			pwHashMapping.add((String[])Arrays.copyOfRange(line, 5, line.length)); //Add all hints for a password in ArrayList
-			pwValueStore.put(line[3], "");
+			pwValueStore.put(line[4], null);
 			for(int i = 5; i < line.length; i++){ //The hints start at position 5
-				hintValueStore.put(line[i], "");
+				hintValueStore.put(line[i], null);
 			}
 		}
 
@@ -179,6 +182,13 @@ public class Master extends AbstractLoggingActor {
 		this.context().watch(this.sender());
 		this.workers.add(this.sender());
 		this.log().info("Registered {}", this.sender());
+
+		//if all values are processed, send them to all the workers
+        if(this.inputReadingComplete == true){
+            for (ActorRef worker : workers ){
+                worker.tell(new HintCrackRequest( new ArrayList<>(hintValueStore.keySet()), "t"), this.self());
+            }
+        }
 	}
 
 	protected void handle(Terminated message) {
