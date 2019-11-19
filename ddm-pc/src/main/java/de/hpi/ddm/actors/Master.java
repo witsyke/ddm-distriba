@@ -8,11 +8,15 @@ import akka.actor.ActorRef;
 import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.actor.Terminated;
+
 import de.hpi.ddm.structures.Password;
 import de.hpi.ddm.structures.Task;
+import de.hpi.ddm.structures.Work;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.commons.text.similarity.HammingDistance;
 
 public class Master extends AbstractLoggingActor {
 
@@ -24,9 +28,9 @@ public class Master extends AbstractLoggingActor {
 
     private HashMap<String, String> hintValueStore = new HashMap<>();
     private HashMap<String, String> pwValueStore = new HashMap<>();
-    private ArrayList<String[]> pwHashMapping = new ArrayList<>();
     private LinkedList<Password> passwords = new LinkedList<Password>();
     private LinkedList<Task> tasks = new LinkedList<Task>();
+    private HashMap<ActorRef, Work> work = new HashMap<>();
     private String charSet = "";
     private int pwLength = 0;
     private boolean tasksCreationStarted;
@@ -80,6 +84,18 @@ public class Master extends AbstractLoggingActor {
         private Password password;
         private int passwordLength;
     }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PasswordInitCrackRequest implements Serializable {
+        private static final long serialVersionUID = 3269154332017915190L;
+        private HashMap<String, String> hints;
+        private String charSet;
+        private Password password;
+        private int passwordLength;
+    }
+
 
     @Data
     public static class PasswordCrackAbort implements Serializable {
@@ -161,8 +177,7 @@ public class Master extends AbstractLoggingActor {
         if (message.getLines().isEmpty()) {
             this.collector.tell(new Collector.PrintMessage(), this.self());
             this.inputReadingComplete = true;
-            //Tell all the workers the state of the art //TODO:
-            //this.terminate(); //TODO: here this.reader.terminate()?
+            //this.terminate();
 
             //Tell all the workers a task to start with.
             for (ActorRef worker : workers) {
@@ -220,10 +235,12 @@ public class Master extends AbstractLoggingActor {
         //If a new worker joins, give him a task.
         if (this.inputReadingComplete && !this.hintsAllCracked) {
             Task tempTask = tasks.pop();
+            this.work.put(this.sender(), tempTask);
             this.sender().tell(new HintCrackRequest(this.hintValueStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.sender());
         } else if (this.inputReadingComplete) {
             Password tempPw = passwords.pop();
-            this.sender().tell(new PasswordCrackRequest(this.charSet, tempPw, this.pwLength), this.self());
+            this.work.put(this.sender(), tempPw);
+            this.sender().tell(new PasswordInitCrackRequest(this.hintValueStore, this.charSet, tempPw, this.pwLength), this.self());
         }
     }
 
@@ -238,21 +255,26 @@ public class Master extends AbstractLoggingActor {
         if (hintValueStore.containsValue(null)) {
             this.log().info("All hints cracked");
             hintsAllCracked = true;
-            //TODO: send all hint abort messages to the workers & start spreading the PWS
-            //TODO: map all hints to the PWs and send them around
+            Password tempPw = passwords.pop();
+            this.work.put(this.sender(), tempPw);
+            this.sender().tell(new PasswordInitCrackRequest(this.hintValueStore, this.charSet, tempPw, this.pwLength), this.self());
+            //TODO: Worker still working when all hints were recieved
         }
 
     }
 
     protected void handle(Worker.FoundPasswordMessage message) {
-        pwValueStore.put(message.getHash(), message.getPassword()); // why are we doing this? think this could be changed to be the queue with the pw tasks and here
-        //marked as complete and forwarded to collector
+
         this.collector.tell(message.getPassword(), this.self());
         if (!pwValueStore.containsValue(null)) {
             this.log().info("All passwords cracked!");
             this.collector.tell(new Collector.PrintMessage(), this.self());
             this.terminate();
         }
+        Password tempPw = passwords.pop();
+        this.work.put(this.sender(), tempPw);
+        this.sender().tell(new PasswordInitCrackRequest(this.hintValueStore, this.charSet, tempPw, this.pwLength), this.self());
+
     }
 
     protected void generateTasks() {
