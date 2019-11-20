@@ -5,7 +5,6 @@ import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
-import java.util.List;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
@@ -18,6 +17,7 @@ import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.cluster.MemberStatus;
 import de.hpi.ddm.MasterSystem;
+import de.hpi.ddm.structures.Password;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -46,7 +46,7 @@ public class Worker extends AbstractLoggingActor {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class CompletedRangeMessage implements Serializable {
+    static class CompletedRangeMessage implements Serializable {
         private static final long serialVersionUID = -7216189678857844911L;
         private HashMap<String, String> hints;
     }
@@ -54,7 +54,7 @@ public class Worker extends AbstractLoggingActor {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class FoundPasswordMessage implements Serializable {
+    static class FoundPasswordMessage implements Serializable {
         private static final long serialVersionUID = -4588265321773490936L;
         private String hash;
         private String password;
@@ -96,14 +96,11 @@ public class Worker extends AbstractLoggingActor {
     @Override
     public Receive createReceive() {
         return receiveBuilder()
-                .match(CurrentClusterState.class, this::handle)
                 .match(MemberUp.class, this::handle)
                 .match(MemberRemoved.class, this::handle)
+                .match(CurrentClusterState.class, this::handle)
                 .match(Master.HintCrackRequest.class, this::handle)
-                .match(Master.HintCrackAbort.class, this::handle)
                 .match(Master.PasswordCrackRequest.class, this::handle)
-                .match(Master.HintResultBroadcast.class, this::handle)
-                .match(Master.PasswordCrackAbort.class, this::handle)
                 .match(Master.PasswordInitCrackRequest.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
@@ -118,7 +115,6 @@ public class Worker extends AbstractLoggingActor {
 
     private void handle(MemberUp message) {
         this.register(message.member());
-
     }
 
     private void register(Member member) {
@@ -137,38 +133,13 @@ public class Worker extends AbstractLoggingActor {
     }
 
     private void handle(Master.PasswordCrackRequest message) {
-        this.passwordFound = false; // have to reset this every time because i was too stupid to get the correction right
-        this.cleanPassword = "";
-        String charSet = message.getCharSet();
+        crackPassword(message.getCharSet(), message.getPassword(), message.getPasswordLength());
 
-        for (String hint : message.getPassword().getHints()) {
-            charSet = charSet.replace(this.hints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
-        }
-
-        char[] chars = charSet.toCharArray();
-        String hashedPassword = message.getPassword().getPassword();
-
-        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, message.getPasswordLength(), hashedPassword);
-
-        this.sender().tell(new FoundPasswordMessage(hashedPassword, this.cleanPassword), this.self()); // this can act as gimme work message at the same time
     }
 
     private void handle(Master.PasswordInitCrackRequest message) {
         this.hints = message.getHints();
-        this.passwordFound = false; // have to reset this every time because i was too stupid to get the correction right
-        this.cleanPassword = "";
-        String charSet = message.getCharSet();
-
-        for (String hint : message.getPassword().getHints()) {
-            charSet = charSet.replace(this.hints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
-        }
-
-        char[] chars = charSet.toCharArray();
-        String hashedPassword = message.getPassword().getPassword();
-
-        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, message.getPasswordLength(), hashedPassword);
-
-        this.sender().tell(new FoundPasswordMessage(hashedPassword, this.cleanPassword), this.self()); // this can act as gimme work message at the same time
+        crackPassword(message.getCharSet(), message.getPassword(), message.getPasswordLength());
     }
 
 
@@ -176,7 +147,6 @@ public class Worker extends AbstractLoggingActor {
         this.hints = message.getHints();
 
         if (this.characterSet.length() != message.getCharacterSet().length()) {
-            System.out.println("generating factorials ...");
             this.generateFactorials(message.getCharacterSet());
         }
         this.characterSet = message.getCharacterSet();
@@ -187,21 +157,12 @@ public class Worker extends AbstractLoggingActor {
 
     }
 
-    private void handle(Master.HintCrackAbort message) {
-        //TODO
-        //Abort function
-    }
 
-    private void handle(Master.PasswordCrackAbort message) {
-        //TODO:
-        //Abort function
-        // SW: don't think we actually need this
-    }
+    ////////////////////
+    // Actor Helpers  //
+    ////////////////////
 
-    private void handle(Master.HintResultBroadcast message) {
-        //TODO:
-    }
-
+    // FIXME ask if we can fix sonar errors
     private String hash(String line) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -220,7 +181,6 @@ public class Worker extends AbstractLoggingActor {
 
     private void calculatePermutationsAndCheckIfHint(String charSet, int start, int end, String character) {
 
-        // final end = factorials[string.length()] = length!
         for (int i = start; i < end; i++) {
             StringBuilder onePermutation = new StringBuilder();
             String temp = charSet;
@@ -263,5 +223,23 @@ public class Worker extends AbstractLoggingActor {
             String newPrefix = word + set[i];
             calculatePermutationsAndCheckIfPassword(set, newPrefix, n, k - 1, password);
         }
+    }
+
+    // extracted this to avoid duplication between Init and normal PW crack message
+    private void crackPassword(String baseCharSet, Password password, int passwordLength) {
+        this.passwordFound = false; // have to reset this every time because i was too stupid to get the correction right
+        this.cleanPassword = "";
+        String charSet = baseCharSet;
+
+        for (String hint : password.getHints()) {
+            charSet = charSet.replace(this.hints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
+        }
+
+        char[] chars = charSet.toCharArray();
+        String hashedPassword = password.getPassword();
+
+        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, passwordLength, hashedPassword);
+
+        this.sender().tell(new FoundPasswordMessage(hashedPassword, this.cleanPassword), this.self()); // this can act as gimme work message at the same time
     }
 }
