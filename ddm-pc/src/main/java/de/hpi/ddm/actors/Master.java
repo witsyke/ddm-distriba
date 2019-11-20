@@ -9,6 +9,7 @@ import akka.actor.PoisonPill;
 import akka.actor.Props;
 import akka.actor.Terminated;
 
+import com.sun.xml.internal.xsom.impl.Ref;
 import de.hpi.ddm.structures.Password;
 import de.hpi.ddm.structures.Task;
 import de.hpi.ddm.structures.Work;
@@ -134,6 +135,11 @@ public class Master extends AbstractLoggingActor {
         private HashMap<String, String> hintResultMap;
     }
 
+    @NoArgsConstructor
+    public static class TerminationMessage implements Serializable {
+        private static final long serialVersionUID = 2340183935637620172L;
+    }
+
     /////////////////
     // Actor State //
     /////////////////
@@ -163,9 +169,12 @@ public class Master extends AbstractLoggingActor {
                 .match(BatchMessage.class, this::handle)
                 .match(Worker.FoundPasswordMessage.class, this::handle)
                 .match(Worker.CompletedRangeMessage.class, this::handle)
+                .match(TerminationMessage.class, this::handle)
                 .match(Terminated.class, this::handle).match(RegistrationMessage.class, this::handle)
+
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString())).build();
     }
+
 
     protected void handle(StartMessage message) {
         this.startTime = System.currentTimeMillis();
@@ -253,7 +262,7 @@ public class Master extends AbstractLoggingActor {
         if (this.inputReadingComplete && !this.hintsAllCracked) {
             Task tempTask = tasks.pop();
             this.work.put(this.sender(), tempTask);
-            this.sender().tell(new HintCrackRequest(this.hintValueStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.sender());
+            this.sender().tell(new HintCrackRequest(this.hintValueStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
         } else if (this.inputReadingComplete) {
             Password tempPw = passwords.pop();
             this.work.put(this.sender(), tempPw);
@@ -269,36 +278,51 @@ public class Master extends AbstractLoggingActor {
 
     protected void handle(Worker.CompletedRangeMessage message) {
         hintValueStore.putAll(message.getHints());
-        if (hintValueStore.containsValue(null)) {
+        if (!hintValueStore.containsValue(null) && !passwords.isEmpty()) {
+            //System.out.println(hintValueStore);
             this.log().info("All hints cracked");
             hintsAllCracked = true;
             Password tempPw = passwords.pop();
             this.work.put(this.sender(), tempPw);
             this.sender().tell(new PasswordInitCrackRequest(this.hintValueStore, this.charSet, tempPw, this.pwLength), this.self());
+            this.work.forEach((k, v) -> {
+                if (v == null && !passwords.isEmpty()) {
+                    Password pop = passwords.pop();
+                    this.work.put(k, pop);
+                    k.tell(new PasswordInitCrackRequest(this.hintValueStore, this.charSet, pop, this.pwLength), this.self());
+                }
+            });
             //TODO: Worker still working when all hints were recieved
-        } else{
+        } else if (!tasks.isEmpty()) {
             Task tempTask = tasks.pop();
             this.work.put(this.sender(), tempTask);
-            this.sender().tell(new HintCrackRequest(this.hintValueStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.sender());
+            this.sender().tell(new HintCrackRequest(this.hintValueStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
+        } else {
+            this.work.put(this.sender(), null);
         }
 
 
     }
 
     protected void handle(Worker.FoundPasswordMessage message) {
-
-        this.collector.tell(message.getPassword(), this.self());
+        this.pwValueStore.put(message.getHash(), message.getPassword());
+        this.collector.tell(new Collector.CollectMessage(message.getPassword()), this.self());
         if (!pwValueStore.containsValue(null)) {
             this.log().info("All passwords cracked!");
             this.collector.tell(new Collector.PrintMessage(), this.self());
             this.terminate();
-        } else{
+        } else if (!passwords.isEmpty()) {
             Password tempPw = passwords.pop();
             this.work.put(this.sender(), tempPw);
             this.sender().tell(new PasswordCrackRequest(this.charSet, tempPw, this.pwLength), this.self());
+        } else {
+            this.work.put(this.sender(), null);
         }
 
+    }
 
+    private void handle(TerminationMessage terminationMessage) {
+        this.terminate();
     }
 
     protected void generateTasks() {
