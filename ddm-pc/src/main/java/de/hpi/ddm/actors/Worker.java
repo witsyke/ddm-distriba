@@ -5,6 +5,7 @@ import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.Objects;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
@@ -42,7 +43,6 @@ public class Worker extends AbstractLoggingActor {
     // Actor Messages //
     ////////////////////
 
-
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -60,13 +60,13 @@ public class Worker extends AbstractLoggingActor {
         private String password;
     }
 
-
     /////////////////
     // Actor State //
     /////////////////
 
     private Member masterSystem;
     private final Cluster cluster;
+
     private HashMap<String, String> hints;
     private int[] factorials;
     private String characterSet = "";
@@ -142,7 +142,6 @@ public class Worker extends AbstractLoggingActor {
         crackPassword(message.getCharSet(), message.getPassword(), message.getPasswordLength());
     }
 
-
     private void handle(Master.HintCrackRequest message) {
         this.hints = message.getHints();
 
@@ -152,8 +151,8 @@ public class Worker extends AbstractLoggingActor {
         this.characterSet = message.getCharacterSet();
 
         this.calculatePermutationsAndCheckIfHint(this.characterSet, message.getStart(), message.getEnd(), message.getMissingChar());
-
-        this.sender().tell(new CompletedRangeMessage(this.hints), this.self()); // this can act as gimme work message at the same time
+        this.hints.values().removeIf(Objects::isNull);
+        this.sender().tell(new CompletedRangeMessage(this.hints), this.self());
 
     }
 
@@ -178,9 +177,7 @@ public class Worker extends AbstractLoggingActor {
         }
     }
 
-
     private void calculatePermutationsAndCheckIfHint(String charSet, int start, int end, String character) {
-
         for (int i = start; i < end; i++) {
             StringBuilder onePermutation = new StringBuilder();
             String temp = charSet;
@@ -198,6 +195,7 @@ public class Worker extends AbstractLoggingActor {
         }
     }
 
+    // different form the basic factorial function in the master, as this saves the factorial for each step in an array
     private void generateFactorials(String string) {
         factorials = new int[string.length() + 1];
         factorials[0] = 1;
@@ -213,7 +211,7 @@ public class Worker extends AbstractLoggingActor {
         }
         if (k == 0) {
             if (this.hash(word).equals(password)) {
-                this.cleanPassword = word;
+                this.cleanPassword = word; // not too happy with these global variables, but not too sure how to change
                 this.passwordFound = true;
             }
             return;
@@ -227,7 +225,7 @@ public class Worker extends AbstractLoggingActor {
 
     // extracted this to avoid duplication between Init and normal PW crack message
     private void crackPassword(String baseCharSet, Password password, int passwordLength) {
-        this.passwordFound = false; // have to reset this every time because i was too stupid to get the correction right
+        this.passwordFound = false;
         this.cleanPassword = "";
         String charSet = baseCharSet;
 
