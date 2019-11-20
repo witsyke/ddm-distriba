@@ -24,7 +24,7 @@ public class Master extends AbstractLoggingActor {
     ////////////////////////
 
     public static final String DEFAULT_NAME = "master";
-    private static final int BASE_RANGE_SIZE = 500000;
+    private static final int BASE_RANGE_SIZE = 750000;
 
     public static Props props(final ActorRef reader, final ActorRef collector) {
         return Props.create(Master.class, () -> new Master(reader, collector));
@@ -154,6 +154,7 @@ public class Master extends AbstractLoggingActor {
         this.passwordLength = Integer.parseInt(line1[3]); // could do this later
 
         generateHintTasks();
+        // Collections.shuffle(this.hintRangeTasks); // --> might be faster for some inputs, but not for the provided example
 
         for (String[] line : message.getLines()) {
             passwordTasks.add(new Password(line[4], Arrays.copyOfRange(line, 5, line.length)));
@@ -175,12 +176,12 @@ public class Master extends AbstractLoggingActor {
 
         //If a new worker joins, give him a task.
         if (this.inputReadingComplete && !this.allHintsCracked) {
-            this.log().info("Handing first hint task on registration to " + this.sender());
+            this.log().debug("Handing first hint task on registration to " + this.sender());
             Task tempTask = hintRangeTasks.pop();
             this.work.put(this.sender(), tempTask);
             this.sender().tell(new HintCrackRequest(this.hintSolutionStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
         } else if (this.inputReadingComplete) {
-            this.log().info("Handing first password task on registration to " + this.sender());
+            this.log().debug("Handing first password task on registration to " + this.sender());
             Password tempPw = passwordTasks.pop();
             this.work.put(this.sender(), tempPw);
             this.sender().tell(new PasswordInitCrackRequest(this.hintSolutionStore, this.charSet, tempPw, this.passwordLength), this.self());
@@ -194,9 +195,9 @@ public class Master extends AbstractLoggingActor {
     }
 
     private void handle(Worker.CompletedRangeMessage message) {
-        this.log().info("Merging hints from " + this.sender());
+        this.log().debug("Merging hints from " + this.sender());
+
         hintSolutionStore.putAll(message.getHints());
-        this.log().info("ready for pw?  " + hintSolutionStore);
         if (!hintSolutionStore.containsValue(null) && !passwordTasks.isEmpty()) {
             this.log().info("All hints cracked");
             allHintsCracked = true;
@@ -211,12 +212,12 @@ public class Master extends AbstractLoggingActor {
                 }
             });
         } else if (!hintRangeTasks.isEmpty()) {
-            this.log().info("Giving worker new hint task. Remaining hint ranges: " + hintRangeTasks.size());
+            this.log().debug("Giving worker new hint task. Remaining hint ranges: " + hintRangeTasks.size());
             Task tempTask = hintRangeTasks.pop();
             this.work.put(this.sender(), tempTask);
             this.sender().tell(new HintCrackRequest(this.hintSolutionStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
         } else {
-            this.log().info("No more hints available, going to idle");
+            this.log().debug("No more hints available, going to idle");
             this.work.put(this.sender(), null);
         }
 
@@ -226,7 +227,7 @@ public class Master extends AbstractLoggingActor {
         this.passwordSolutionStore.put(message.getHash(), message.getPassword());
         this.collector.tell(new Collector.CollectMessage(message.getPassword()), this.self());
         if (!passwordSolutionStore.containsValue(null)) {
-            this.log().info("All passwords cracked!");
+            this.log().debug("All passwords cracked!");
             this.collector.tell(new Collector.PrintMessage(), this.self());
             this.terminate();
         } else if (!passwordTasks.isEmpty()) {
@@ -286,5 +287,4 @@ public class Master extends AbstractLoggingActor {
         }
         return n * factorial(n - 1);
     }
-
 }

@@ -5,7 +5,9 @@ import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
@@ -151,8 +153,15 @@ public class Worker extends AbstractLoggingActor {
         this.characterSet = message.getCharacterSet();
 
         this.calculatePermutationsAndCheckIfHint(this.characterSet, message.getStart(), message.getEnd(), message.getMissingChar());
-        this.hints.values().removeIf(Objects::isNull);
-        this.sender().tell(new CompletedRangeMessage(this.hints), this.self());
+
+        // has to be this complicated as local processing only passes references instead of object when sending messages
+        HashMap<String, String> tempHints = new HashMap<>();
+        this.hints.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue() != null)
+                .forEach(entry -> tempHints.put(entry.getKey(), entry.getValue()));
+
+        this.sender().tell(new CompletedRangeMessage(tempHints), this.self());
 
     }
 
