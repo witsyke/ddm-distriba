@@ -104,6 +104,7 @@ public class Worker extends AbstractLoggingActor {
                 .match(Master.HintCrackRequest.class, this::handle)
                 .match(Master.PasswordCrackRequest.class, this::handle)
                 .match(Master.PasswordInitCrackRequest.class, this::handle)
+                .match(Master.HintInitCrackRequest.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
     }
@@ -144,15 +145,23 @@ public class Worker extends AbstractLoggingActor {
         crackPassword(message.getCharSet(), message.getPassword(), message.getPasswordLength());
     }
 
-    private void handle(Master.HintCrackRequest message) {
+    private void handle(Master.HintInitCrackRequest message){
         this.hints = message.getHints();
+        crackHint(message.getCharacterSet(), message.getStart(), message.getEnd(), message.getMissingChar());
+    }
 
-        if (this.characterSet.length() != message.getCharacterSet().length()) {
-            this.generateFactorials(message.getCharacterSet());
+    private void handle(Master.HintCrackRequest message) {
+        crackHint(message.getCharacterSet(), message.getStart(), message.getEnd(), message.getMissingChar());
+
+    }
+
+    private void crackHint(String characterSet, int start, int end, String missingChar) {
+        if (this.characterSet.length() != characterSet.length()) {
+            this.generateFactorials(characterSet);
         }
-        this.characterSet = message.getCharacterSet();
+        this.characterSet = characterSet;
 
-        this.calculatePermutationsAndCheckIfHint(this.characterSet, message.getStart(), message.getEnd(), message.getMissingChar());
+        this.calculatePermutationsAndCheckIfHint(this.characterSet, start, end, characterSet);
 
         // has to be this complicated as local processing only passes references instead of object when sending messages
         HashMap<String, String> tempHints = new HashMap<>();
@@ -162,7 +171,6 @@ public class Worker extends AbstractLoggingActor {
                 .forEach(entry -> tempHints.put(entry.getKey(), entry.getValue()));
 
         this.sender().tell(new CompletedRangeMessage(tempHints), this.self());
-
     }
 
 
