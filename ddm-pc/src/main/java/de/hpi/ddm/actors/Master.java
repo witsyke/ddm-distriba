@@ -37,7 +37,7 @@ public class Master extends AbstractLoggingActor {
     }
 
     ////////////////////
-    // Actor Messages //
+    // Master Messages //
     ////////////////////
 
     @Data
@@ -62,7 +62,7 @@ public class Master extends AbstractLoggingActor {
     @NoArgsConstructor
     @AllArgsConstructor
     static class PasswordInitCrackRequest implements Serializable {
-        private static final long serialVersionUID = 3269154332017915190L;
+        private static final long serialVersionUID = 7147056297234151997L;
         private HashMap<String, String> hints;
         private String charSet;
         private Password password;
@@ -135,7 +135,6 @@ public class Master extends AbstractLoggingActor {
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString())).build();
     }
 
-
     private void handle(StartMessage message) {
         this.startTime = System.currentTimeMillis();
         this.reader.tell(new Reader.ReadMessage(), this.self());
@@ -147,7 +146,6 @@ public class Master extends AbstractLoggingActor {
             this.collector.tell(new Collector.PrintMessage(), this.self());
             this.inputReadingComplete = true;
             startUpWorkers(); // give all known workers their first assignment
-
             return;
         }
         // get one line to extract charSet and password length to use for task generation
@@ -158,7 +156,7 @@ public class Master extends AbstractLoggingActor {
         generateHintTasks();
 
         for (String[] line : message.getLines()) {
-            passwordTasks.add(new Password(line[4], Arrays.asList(Arrays.copyOfRange(line, 5, line.length))));
+            passwordTasks.add(new Password(line[4], Arrays.copyOfRange(line, 5, line.length)));
             passwordSolutionStore.put(line[4], null);
 
             for (int i = 5; i < line.length; i++) { //The hints start at position 5
@@ -177,10 +175,12 @@ public class Master extends AbstractLoggingActor {
 
         //If a new worker joins, give him a task.
         if (this.inputReadingComplete && !this.allHintsCracked) {
+            this.log().info("Handing first hint task on registration to " + this.sender());
             Task tempTask = hintRangeTasks.pop();
             this.work.put(this.sender(), tempTask);
             this.sender().tell(new HintCrackRequest(this.hintSolutionStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
         } else if (this.inputReadingComplete) {
+            this.log().info("Handing first password task on registration to " + this.sender());
             Password tempPw = passwordTasks.pop();
             this.work.put(this.sender(), tempPw);
             this.sender().tell(new PasswordInitCrackRequest(this.hintSolutionStore, this.charSet, tempPw, this.passwordLength), this.self());
@@ -194,7 +194,9 @@ public class Master extends AbstractLoggingActor {
     }
 
     private void handle(Worker.CompletedRangeMessage message) {
+        this.log().info("Merging hints from " + this.sender());
         hintSolutionStore.putAll(message.getHints());
+        this.log().info("ready for pw?  " + hintSolutionStore);
         if (!hintSolutionStore.containsValue(null) && !passwordTasks.isEmpty()) {
             this.log().info("All hints cracked");
             allHintsCracked = true;
@@ -209,10 +211,12 @@ public class Master extends AbstractLoggingActor {
                 }
             });
         } else if (!hintRangeTasks.isEmpty()) {
+            this.log().info("Giving worker new hint task. Remaining hint ranges: " + hintRangeTasks.size());
             Task tempTask = hintRangeTasks.pop();
             this.work.put(this.sender(), tempTask);
             this.sender().tell(new HintCrackRequest(this.hintSolutionStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
         } else {
+            this.log().info("No more hints available, going to idle");
             this.work.put(this.sender(), null);
         }
 
@@ -276,13 +280,11 @@ public class Master extends AbstractLoggingActor {
         this.log().info("Algorithm finished in {} ms", executionTime);
     }
 
-
     private int factorial(int n) {
         if (n <= 2) {
             return n;
         }
         return n * factorial(n - 1);
     }
-
 
 }
