@@ -55,7 +55,7 @@ public class Worker extends AbstractLoggingActor {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class FoundPasswordMessage implements Serializable {
-        private static final long serialVersionUID = 556144565218770270L;
+        private static final long serialVersionUID = -4588265321773490936L;
         private String hash;
         private String password;
     }
@@ -104,6 +104,7 @@ public class Worker extends AbstractLoggingActor {
                 .match(Master.PasswordCrackRequest.class, this::handle)
                 .match(Master.HintResultBroadcast.class, this::handle)
                 .match(Master.PasswordCrackAbort.class, this::handle)
+                .match(Master.PasswordInitCrackRequest.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
     }
@@ -145,21 +146,40 @@ public class Worker extends AbstractLoggingActor {
         }
 
         char[] chars = charSet.toCharArray();
+        String hashedPassword = message.getPassword().getPassword();
 
+        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, message.getPasswordLength(), hashedPassword);
 
-        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, message.getPasswordLength(), message.getPassword().getPassword());
-
-        this.sender().tell(new FoundPasswordMessage(message.getPassword().getPassword(), this.cleanPassword), this.self()); // this can act as gimme work message at the same time
+        this.sender().tell(new FoundPasswordMessage(hashedPassword, this.cleanPassword), this.self()); // this can act as gimme work message at the same time
     }
 
-    private void handle(Master.HintCrackRequest message) {
+    private void handle(Master.PasswordInitCrackRequest message) {
+        this.hints = message.getHints();
+        this.passwordFound = false; // have to reset this every time because i was too stupid to get the correction right
+        this.cleanPassword = "";
+        String charSet = message.getCharSet();
 
-        if (!this.characterSet.equals(message.getCharacterSet())) {
-            this.characterSet = message.getCharacterSet();
+        for (String hint : message.getPassword().getHints()) {
+            charSet = charSet.replace(this.hints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
         }
+
+        char[] chars = charSet.toCharArray();
+        String hashedPassword = message.getPassword().getPassword();
+
+        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, message.getPasswordLength(), hashedPassword);
+
+        this.sender().tell(new FoundPasswordMessage(hashedPassword, this.cleanPassword), this.self()); // this can act as gimme work message at the same time
+    }
+
+
+    private void handle(Master.HintCrackRequest message) {
+        this.hints = message.getHints();
+
         if (this.characterSet.length() != message.getCharacterSet().length()) {
-            this.generateFactorials(this.characterSet);
+            System.out.println("generating factorials ...");
+            this.generateFactorials(message.getCharacterSet());
         }
+        this.characterSet = message.getCharacterSet();
 
         this.calculatePermutationsAndCheckIfHint(this.characterSet, message.getStart(), message.getEnd(), message.getMissingChar());
 
@@ -199,6 +219,7 @@ public class Worker extends AbstractLoggingActor {
 
 
     private void calculatePermutationsAndCheckIfHint(String charSet, int start, int end, String character) {
+
         // final end = factorials[string.length()] = length!
         for (int i = start; i < end; i++) {
             StringBuilder onePermutation = new StringBuilder();
@@ -225,21 +246,21 @@ public class Worker extends AbstractLoggingActor {
         }
     }
 
-    private void calculatePermutationsAndCheckIfPassword(char[] set, String prefix, int n, int k, String password) {
+    private void calculatePermutationsAndCheckIfPassword(char[] set, String word, int n, int k, String password) {
 
         if (this.passwordFound) {
             return;
         }
         if (k == 0) {
-            if (this.hash(prefix).equals(password)) {
-                this.cleanPassword = this.hash(prefix);
+            if (this.hash(word).equals(password)) {
+                this.cleanPassword = word;
                 this.passwordFound = true;
             }
             return;
         }
 
         for (int i = 0; i < n; ++i) {
-            String newPrefix = prefix + set[i];
+            String newPrefix = word + set[i];
             calculatePermutationsAndCheckIfPassword(set, newPrefix, n, k - 1, password);
         }
     }
