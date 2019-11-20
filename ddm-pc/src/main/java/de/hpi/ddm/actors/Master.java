@@ -24,7 +24,7 @@ public class Master extends AbstractLoggingActor {
     ////////////////////////
 
     public static final String DEFAULT_NAME = "master";
-    private static final int BASE_RANGE_SIZE = 750000;
+    private static final int BASE_RANGE_SIZE = 500000;
 
     public static Props props(final ActorRef reader, final ActorRef collector) {
         return Props.create(Master.class, () -> new Master(reader, collector));
