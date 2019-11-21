@@ -1,13 +1,10 @@
 package de.hpi.ddm.actors;
 
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.*;
 
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
@@ -19,6 +16,7 @@ import akka.cluster.ClusterEvent.MemberRemoved;
 import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.cluster.MemberStatus;
+import com.beust.jcommander.internal.Sets;
 import de.hpi.ddm.MasterSystem;
 import de.hpi.ddm.structures.Password;
 import lombok.AllArgsConstructor;
@@ -69,7 +67,9 @@ public class Worker extends AbstractLoggingActor {
     private Member masterSystem;
     private final Cluster cluster;
 
-    private HashMap<String, String> hints;
+    private Set<String> hints = Sets.newHashSet();
+    private HashMap<String, String> finalHints;
+    private HashMap<String, String> crackedHints = new HashMap<>();
     private int[] factorials;
     private String characterSet = "";
     private boolean passwordFound;
@@ -135,18 +135,18 @@ public class Worker extends AbstractLoggingActor {
             this.self().tell(PoisonPill.getInstance(), ActorRef.noSender());
     }
 
+    private void handle(Master.PasswordInitCrackRequest message) {
+        this.finalHints = message.getHints();
+        crackPassword(message.getCharSet(), message.getPassword(), message.getPasswordLength());
+    }
+
     private void handle(Master.PasswordCrackRequest message) {
         crackPassword(message.getCharSet(), message.getPassword(), message.getPasswordLength());
 
     }
 
-    private void handle(Master.PasswordInitCrackRequest message) {
-        this.hints = message.getHints();
-        crackPassword(message.getCharSet(), message.getPassword(), message.getPasswordLength());
-    }
-
-    private void handle(Master.HintInitCrackRequest message){
-        this.hints = message.getHints();
+    private void handle(Master.HintInitCrackRequest message) {
+        this.hints.addAll(message.getHints());
         crackHint(message.getCharacterSet(), message.getStart(), message.getEnd(), message.getMissingChar());
     }
 
@@ -155,46 +155,38 @@ public class Worker extends AbstractLoggingActor {
 
     }
 
+    ////////////////////
+    // Actor Helpers  //
+    ////////////////////
+
+    private String hash(String line) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashedBytes = digest.digest(String.valueOf(line).getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder stringBuffer = new StringBuilder();
+            for (byte hashedByte : hashedBytes) {
+                stringBuffer.append(Integer.toString((hashedByte & 0xff) + 0x100, 16).substring(1));
+            }
+            return stringBuffer.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e.getMessage()); //NOSONAR
+        }
+    }
+
     private void crackHint(String characterSet, int start, int end, String missingChar) {
         if (this.characterSet.length() != characterSet.length()) {
             this.generateFactorials(characterSet);
         }
         this.characterSet = characterSet;
 
-        this.calculatePermutationsAndCheckIfHint(this.characterSet, start, end, characterSet);
+        this.calculatePermutationsAndCheckIfHint(this.characterSet, start, end, missingChar);
 
-        // has to be this complicated as local processing only passes references instead of object when sending messages
-        HashMap<String, String> tempHints = new HashMap<>();
-        this.hints.entrySet()
-                .stream()
-                .filter(entry -> entry.getValue() != null)
-                .forEach(entry -> tempHints.put(entry.getKey(), entry.getValue()));
-
-        this.sender().tell(new CompletedRangeMessage(tempHints), this.self());
-    }
-
-
-    ////////////////////
-    // Actor Helpers  //
-    ////////////////////
-
-    // FIXME ask if we can fix sonar errors
-    private String hash(String line) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hashedBytes = digest.digest(String.valueOf(line).getBytes("UTF-8"));
-
-            StringBuffer stringBuffer = new StringBuffer();
-            for (int i = 0; i < hashedBytes.length; i++) {
-                stringBuffer.append(Integer.toString((hashedBytes[i] & 0xff) + 0x100, 16).substring(1));
-            }
-            return stringBuffer.toString();
-        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
-            throw new RuntimeException(e.getMessage());
-        }
+        this.sender().tell(new CompletedRangeMessage(this.crackedHints), this.self());
     }
 
     private void calculatePermutationsAndCheckIfHint(String charSet, int start, int end, String character) {
+        this.crackedHints.clear();
         for (int i = start; i < end; i++) {
             StringBuilder onePermutation = new StringBuilder();
             String temp = charSet;
@@ -206,8 +198,9 @@ public class Worker extends AbstractLoggingActor {
                 temp = temp.substring(0, selected) + temp.substring(selected + 1);
             }
             String hashedPermutation = hash(onePermutation.toString());
-            if (this.hints.containsKey(hashedPermutation)) {
-                this.hints.put(hashedPermutation, character);
+            if (this.hints.remove(hashedPermutation)) {
+                this.crackedHints.put(hashedPermutation, character);
+
             }
         }
     }
@@ -247,7 +240,7 @@ public class Worker extends AbstractLoggingActor {
         String charSet = baseCharSet;
 
         for (String hint : password.getHints()) {
-            charSet = charSet.replace(this.hints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
+            charSet = charSet.replace(this.finalHints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
         }
 
         char[] chars = charSet.toCharArray();
