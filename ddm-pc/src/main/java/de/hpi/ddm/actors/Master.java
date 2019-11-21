@@ -95,7 +95,7 @@ public class Master extends AbstractLoggingActor {
     @AllArgsConstructor
     static class HintInitCrackRequest implements Serializable {
         private static final long serialVersionUID = 5508620954947621835L;
-        private HashMap<String, String> hints;
+        private Set<String> hints;
         private String characterSet;
         private int start;
         private int end;
@@ -190,7 +190,7 @@ public class Master extends AbstractLoggingActor {
             this.log().debug("Handing first hint task on registration to " + this.sender());
             Task tempTask = hintRangeTasks.pop();
             this.work.put(this.sender(), tempTask);
-            this.sender().tell(new HintInitCrackRequest(this.hintSolutionStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
+            this.sender().tell(new HintInitCrackRequest(this.hintSolutionStore.keySet(), tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
         } else if (this.inputReadingComplete) {
             this.log().debug("Handing first password task on registration to " + this.sender());
             Password tempPw = passwordTasks.pop();
@@ -255,7 +255,7 @@ public class Master extends AbstractLoggingActor {
         for (ActorRef worker : workers) {
             if (!hintRangeTasks.isEmpty()) {
                 Task tempTask = hintRangeTasks.pop();
-                worker.tell(new HintInitCrackRequest(this.hintSolutionStore, tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
+                worker.tell(new HintInitCrackRequest(this.hintSolutionStore.keySet(), tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
             }
         }
 
