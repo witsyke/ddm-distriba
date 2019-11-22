@@ -103,8 +103,8 @@ public class Worker extends AbstractLoggingActor {
                 .match(CurrentClusterState.class, this::handle)
                 .match(Master.HintCrackRequest.class, this::handle)
                 .match(Master.PasswordCrackRequest.class, this::handle)
-                .match(Master.PasswordInitCrackRequest.class, this::handle)
                 .match(Master.HintInitCrackRequest.class, this::handle)
+                .match(Master.PasswordInitCrackRequest.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
     }
@@ -159,21 +159,6 @@ public class Worker extends AbstractLoggingActor {
     // Actor Helpers  //
     ////////////////////
 
-    private String hash(String line) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hashedBytes = digest.digest(String.valueOf(line).getBytes(StandardCharsets.UTF_8));
-
-            StringBuilder stringBuffer = new StringBuilder();
-            for (byte hashedByte : hashedBytes) {
-                stringBuffer.append(Integer.toString((hashedByte & 0xff) + 0x100, 16).substring(1));
-            }
-            return stringBuffer.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e.getMessage()); //NOSONAR
-        }
-    }
-
     private void crackHint(String characterSet, int start, int end, String missingChar) {
         if (this.characterSet.length() != characterSet.length()) {
             this.generateFactorials(characterSet);
@@ -214,6 +199,24 @@ public class Worker extends AbstractLoggingActor {
         }
     }
 
+    // extracted this to avoid duplication between Init and normal PW crack message
+    private void crackPassword(String baseCharSet, Password password, int passwordLength) {
+        this.passwordFound = false;
+        this.cleanPassword = "";
+        String charSet = baseCharSet;
+
+        for (String hint : password.getHints()) {
+            charSet = charSet.replace(this.finalHints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
+        }
+
+        char[] chars = charSet.toCharArray();
+        String hashedPassword = password.getPassword();
+
+        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, passwordLength, hashedPassword);
+
+        this.sender().tell(new FoundPasswordMessage(hashedPassword, this.cleanPassword), this.self()); // this can act as gimme work message at the same time
+    }
+
     private void calculatePermutationsAndCheckIfPassword(char[] set, String word, int n, int k, String password) {
 
         if (this.passwordFound) {
@@ -233,21 +236,18 @@ public class Worker extends AbstractLoggingActor {
         }
     }
 
-    // extracted this to avoid duplication between Init and normal PW crack message
-    private void crackPassword(String baseCharSet, Password password, int passwordLength) {
-        this.passwordFound = false;
-        this.cleanPassword = "";
-        String charSet = baseCharSet;
+    private String hash(String line) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashedBytes = digest.digest(String.valueOf(line).getBytes(StandardCharsets.UTF_8));
 
-        for (String hint : password.getHints()) {
-            charSet = charSet.replace(this.finalHints.get(hint), ""); // this assumes that all hints are actually there, if this fails consider checking presence of hint before usage
+            StringBuilder stringBuffer = new StringBuilder();
+            for (byte hashedByte : hashedBytes) {
+                stringBuffer.append(Integer.toString((hashedByte & 0xff) + 0x100, 16).substring(1));
+            }
+            return stringBuffer.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e.getMessage()); //NOSONAR
         }
-
-        char[] chars = charSet.toCharArray();
-        String hashedPassword = password.getPassword();
-
-        this.calculatePermutationsAndCheckIfPassword(chars, "", chars.length, passwordLength, hashedPassword);
-
-        this.sender().tell(new FoundPasswordMessage(hashedPassword, this.cleanPassword), this.self()); // this can act as gimme work message at the same time
     }
 }
