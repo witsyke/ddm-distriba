@@ -24,7 +24,7 @@ public class Master extends AbstractLoggingActor {
     ////////////////////////
 
     public static final String DEFAULT_NAME = "master";
-    private static final int BASE_RANGE_SIZE = 500000;
+    private static final int BASE_RANGE_SIZE = 350000;
 
     public static Props props(final ActorRef reader, final ActorRef collector) {
         return Props.create(Master.class, () -> new Master(reader, collector));
@@ -190,7 +190,7 @@ public class Master extends AbstractLoggingActor {
             this.log().debug("Handing first hint task on registration to " + this.sender());
             Task tempTask = hintRangeTasks.pop();
             this.work.put(this.sender(), tempTask);
-            this.sender().tell(new HintInitCrackRequest(this.hintSolutionStore.keySet(), tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
+            this.sender().tell(new HintInitCrackRequest(new HashSet<>(this.hintSolutionStore.keySet()), tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
         } else if (this.inputReadingComplete) {
             this.log().debug("Handing first password task on registration to " + this.sender());
             Password tempPw = passwordTasks.pop();
@@ -255,7 +255,7 @@ public class Master extends AbstractLoggingActor {
         for (ActorRef worker : workers) {
             if (!hintRangeTasks.isEmpty()) {
                 Task tempTask = hintRangeTasks.pop();
-                worker.tell(new HintInitCrackRequest(this.hintSolutionStore.keySet(), tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
+                worker.tell(new HintInitCrackRequest(new HashSet<>(this.hintSolutionStore.keySet()), tempTask.characterSet, tempTask.start, tempTask.end, tempTask.missingChar), this.self());
             }
         }
 
