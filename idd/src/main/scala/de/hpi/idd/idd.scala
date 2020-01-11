@@ -9,6 +9,8 @@ import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorIndexer}
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
+import java.io.File
+
 
 object idd extends App {
 
@@ -18,15 +20,43 @@ object idd extends App {
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
 
-    val peopleDFCsv = spark.read.format("csv")
-      .option("sep", ";")
-      .option("inferSchema", "true")
-      .option("header", "true")
-      .load("examples/src/main/resources/people.csv")
+    //if (args.length == 0 | args.length> 2) {
+    //  println("No args or the wrong number of args given")
+    //}
+
+    var TPCH_path = "./TPCH"
+    var cores = 4
+    TPCH_path = args(0)
+    cores = args(1).toInt
+
+    // Create a SparkSession to work with Spark
+    val sparkBuilder = SparkSession
+      .builder()
+      .appName("SparkTutorial")
+      .master("local[4]") // local, with 4 worker cores
+    val spark = sparkBuilder.getOrCreate()
+
+    //Set max number of cores
+    spark.conf.set("spark.executor.cores", cores)
+
+    // Set the default number of shuffle partitions (default is 200, which is too high for local deployment)
+    spark.conf.set("spark.sql.shuffle.partitions", "8")
+
 
     //------------------------------------------------------------------------------------------------------------------
-    // Lamda basics (for Scala)
-    //------------------------------------------------------------------------------------------------------------------
+    // Reading the files
+    //-
+    def getListOfFiles(dir: String):List[File] = {
+      val d = new File(dir)
+      if (d.exists && d.isDirectory) {
+        d.listFiles.filter(_.isFile).toList
+      } else {
+        List[File]()
+      }
+    }
+    val files = getListOfFiles("/TCPH")
+  -----------------------------------------------------------------------------------------------------------------
+
 
     //spark uses user defined functions to transform data, lets first look at how functions are defined in scala:
     val smallListOfNumbers = List(1, 2, 3, 4, 5)
@@ -56,15 +86,7 @@ object idd extends App {
     // Setting up a Spark Session
     //------------------------------------------------------------------------------------------------------------------
 
-    // Create a SparkSession to work with Spark
-    val sparkBuilder = SparkSession
-      .builder()
-      .appName("SparkTutorial")
-      .master("local[4]") // local, with 4 worker cores
-    val spark = sparkBuilder.getOrCreate()
 
-    // Set the default number of shuffle partitions (default is 200, which is too high for local deployment)
-    spark.conf.set("spark.sql.shuffle.partitions", "8") //
 
     // Importing implicit encoders for standard library classes and tuples that are used as Dataset types
     import spark.implicits._
