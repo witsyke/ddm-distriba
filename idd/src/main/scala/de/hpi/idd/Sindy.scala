@@ -6,6 +6,8 @@ object Sindy {
 
   def discoverINDs(inputs: List[String], spark: SparkSession): Unit = {
 
-    // TODO
+    for()
+      val df = spark.read.format("csv").option("header", "true").load("csvfile.csv")
+
   }
 }
