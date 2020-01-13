@@ -12,7 +12,7 @@ import org.apache.log4j.Level
 import java.io.File
 
 
-object idd extends App {
+object Idd extends App {
 
 
   override def main(args: Array[String]): Unit = {
@@ -32,7 +32,8 @@ object idd extends App {
       println(s"Execution: ${t1 - t0} ms")
       result
     }
-
+    // TODO add jcommander to parse commandline arguments -> look at how this was done for akka exercises
+    // TODO clean up code so no useless commented code is left
     //if (args.length == 0 | args.length> 2) {
     //  println("No args or the wrong number of args given")
     //}
