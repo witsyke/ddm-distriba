@@ -15,7 +15,6 @@ import java.io.File
 object idd extends App {
 
 
-
   override def main(args: Array[String]): Unit = {
 
     // Turn off logging
@@ -40,8 +39,8 @@ object idd extends App {
 
     var TPCH_path = "./TPCH"
     var cores = 4
-//    TPCH_path = args(0)
-//    cores = args(1).toInt
+    //    TPCH_path = args(0)
+    //    cores = args(1).toInt
 
     //------------------------------------------------------------------------------------------------------------------
     // Setting up a Spark Session
@@ -53,7 +52,7 @@ object idd extends App {
       .builder()
       .appName("SparkTutorial")
       .master("local[4]") // local, with 4 worker cores
-     // .enableHiveSupport()
+    // .enableHiveSupport()
     val spark = sparkBuilder.getOrCreate()
 
 
@@ -68,14 +67,16 @@ object idd extends App {
     // Reading the files
     //------------------------------------------------------------------------------------------------------------------
 
-    val inputs = List("nation", "region") //"region", "nation", "supplier", "customer", "part", "lineitem", "orders")
+    val inputs = List("nation", "region", "supplier", "customer", "part", "lineitem", "orders")
       .map(name => s"data/TPCH/tpch_$name.csv")
 
     //------------------------------------------------------------------------------------------------------------------
     // Execute IND-Discovery
     //------------------------------------------------------------------------------------------------------------------
-2
-    time {Sindy.discoverINDs(inputs, spark)}
+    2
+    time {
+      Sindy.discoverINDs(inputs, spark)
+    }
 
 
   }
