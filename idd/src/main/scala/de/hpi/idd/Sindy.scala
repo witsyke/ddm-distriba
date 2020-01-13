@@ -25,7 +25,8 @@ object Sindy {
       .reduceByKey((a, n) => a.intersect(n))
       .toDF
       .filter(row => row.getAs[Seq[String]]("_2").nonEmpty)
-      .orderBy($"_1".asc)
+      .sort($"_1")
+      .collect()
       .foreach(row => println(row.get(0) + " < " + row.getAs[Seq[String]](1).mkString(", ")))
 
   }

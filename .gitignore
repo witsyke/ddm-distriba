@@ -26,7 +26,7 @@ hs_err_pid*
 
 target/
 
-idd/TPCH/
+idd/data/TPCH/
 spark-tutorial/TPCH
 .DS_Store
 .DS_Store?
