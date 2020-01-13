@@ -40,8 +40,8 @@ object idd extends App {
 
     var TPCH_path = "./TPCH"
     var cores = 4
-    TPCH_path = args(0)
-    cores = args(1).toInt
+//    TPCH_path = args(0)
+//    cores = args(1).toInt
 
     //------------------------------------------------------------------------------------------------------------------
     // Setting up a Spark Session
@@ -53,7 +53,10 @@ object idd extends App {
       .builder()
       .appName("SparkTutorial")
       .master("local[4]") // local, with 4 worker cores
+     // .enableHiveSupport()
     val spark = sparkBuilder.getOrCreate()
+
+
 
     //Set max number of cores
     spark.conf.set("spark.executor.cores", cores)
