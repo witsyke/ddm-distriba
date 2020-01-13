@@ -33,7 +33,7 @@ object Idd extends App {
     //  println("No args or the wrong number of args given")
     //}
 
-    var TPCH_path = "./TPCH"
+    var TPCH_path = "data/TPCH/"
     var cores = 4
     //    TPCH_path = args(0)
     //    cores = args(1).toInt
@@ -62,12 +62,19 @@ object Idd extends App {
     //------------------------------------------------------------------------------------------------------------------
     // Reading the files
     //------------------------------------------------------------------------------------------------------------------
-    val inputs = List("nation", "region", "supplier", "customer", "part", "lineitem", "orders") // TODO work on input -> it should take all files in folder not just the ones with these names
-      .map(name => s"data/TPCH/tpch_$name.csv")
+
+    val inputs = new File(TPCH_path)
+      .listFiles
+      .filter(_.isFile)
+      .map(_.getPath).toList
+
+    //val inputs = List("nation", "region", "supplier", "customer", "part", "lineitem", "orders")
+    //  .map(name => s"data/TPCH/tpch_$name.csv")
 
     //------------------------------------------------------------------------------------------------------------------
     // Execute IND-Discovery
     //------------------------------------------------------------------------------------------------------------------
+
     time {
       Sindy.discoverINDs(inputs, spark)
     }
