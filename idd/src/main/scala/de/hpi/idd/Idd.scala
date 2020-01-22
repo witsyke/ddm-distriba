@@ -40,6 +40,7 @@ object Idd extends App {
       println(s"Execution: ${t1 - t0} ms")
       result
     }
+    println("local[" + cores + "]")
 
     //------------------------------------------------------------------------------------------------------------------
     // Setting up a Spark Session
@@ -47,7 +48,7 @@ object Idd extends App {
     val sparkBuilder = SparkSession
       .builder()
       .appName("Idd")
-      .master("local[4]") // TODO what should we do here for the cluster deployment
+      .master("local[" + cores + "]") // TODO what should we do here for the cluster deployment
     val spark = sparkBuilder.getOrCreate()
 
     spark.conf.set("spark.executor.cores", cores)
