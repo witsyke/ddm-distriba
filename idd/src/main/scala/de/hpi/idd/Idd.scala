@@ -14,8 +14,7 @@ object Idd extends App {
   override def main(args: Array[String]): Unit = {
 
     val DEFAULT_PATH = "./TPCH/"
-    val DEFAULT_CORES = 4 // max number of cores
-    val DEFAULT_PARTITIONS = 200 // default number of shuffle partitions
+    val DEFAULT_CORES = 4
 
     val command = new Command()
     val jc = new JCommander()
@@ -26,8 +25,8 @@ object Idd extends App {
     val path = if (command.input_path == null) DEFAULT_PATH else command.input_path
     val cores = if (command.input_cores == 0) DEFAULT_CORES else command.input_cores
     val partitions = if (command.input_partitions == 0) cores*2 else command.input_partitions
-    //println("Cores: " + cores);
-    //println("Paritions: " + partitions);
+//    println("Cores: " + cores);
+//    println("Partitions: " + partitions);
 
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
@@ -53,7 +52,7 @@ object Idd extends App {
       .master("local[" + cores + "]")
     val spark = sparkBuilder.getOrCreate()
 
-    spark.conf.set("spark.executor.cores", cores)
+//    spark.conf.set("spark.executor.cores", cores)
     spark.conf.set("spark.sql.shuffle.partitions", partitions)
 
     //------------------------------------------------------------------------------------------------------------------
